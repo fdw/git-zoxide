@@ -1,13 +1,14 @@
+use std::cmp::max;
 use strsim::jaro_winkler;
 
-pub fn find_best_branch<'b>(branches: &'b Vec<String>, params: &Vec<&str>) -> Option<&'b str> {
+pub fn find_best_branch<'b>(branches: &'b Vec<String>, needles: &Vec<&str>) -> Option<&'b str> {
     let mut best_score: f64 = 0.0;
     let mut best_scored_branch: Option<&str> = None;
 
     for branch in branches {
         let tokens: Vec<&str> = branch.split(['/', '-', '_']).collect();
 
-        let branch_score = does_match(&tokens, params, &branch);
+        let branch_score = match_branch_name(&tokens, needles);
 
         if branch_score > best_score {
             best_score = branch_score;
@@ -22,25 +23,24 @@ pub fn find_best_branch<'b>(branches: &'b Vec<String>, params: &Vec<&str>) -> Op
     }
 }
 
-pub fn does_match(tokens: &Vec<&str>, params: &Vec<&str>, branch_name: &str) -> f64 {
-    if params.is_empty() {
+pub fn match_branch_name(haystack: &Vec<&str>, needles: &Vec<&str>) -> f64 {
+    if needles.is_empty() {
         return 1.0;
     }
 
-    if params.len() > tokens.len() {
+    if needles.len() > haystack.len() {
         return 0.0;
     }
 
     let mut best_score = 0.0;
-    for token_index in 0..=(tokens.len() - params.len()) {
+    for token_index in 0..=(haystack.len() - needles.len()) {
         let first_match = match_token(
-            tokens[token_index],
-            params.first().expect("This needs to be here"),
+            needles.first().expect("This needs to be here"),
+            haystack[token_index],
         );
-        let later_matches = does_match(
-            &tokens[token_index..].to_vec(),
-            &params[1..].to_vec(),
-            branch_name,
+        let later_matches = match_branch_name(
+            &haystack[token_index..].to_vec(),
+            &needles[1..].to_vec(),
         );
         let unified_score = first_match * later_matches;
 
@@ -52,12 +52,17 @@ pub fn does_match(tokens: &Vec<&str>, params: &Vec<&str>, branch_name: &str) -> 
     best_score
 }
 
-fn match_token(a: &str, b: &str) -> f64 {
-    if a.chars().all(|it| it.is_digit(10)) {
-        return if b.starts_with(a) { 1.0 } else { 0.0 };
+fn match_token(haystack: &str, needle: &str) -> f64 {
+    if needle.chars().all(|it| it.is_digit(10)) {
+        let prefix_length = haystack.chars().zip(needle.chars()).take_while(|(a, b)| a == b).count();
+        if prefix_length < needle.len() {
+            return 0.0;
+        }
+
+        return prefix_length as f64 / max(haystack.len(), needle.len()) as f64;
     }
 
-    jaro_winkler(&a.to_lowercase(), &b.to_lowercase())
+    jaro_winkler(&needle.to_lowercase(), &haystack.to_lowercase())
 }
 
 #[cfg(test)]
