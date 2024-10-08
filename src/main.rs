@@ -1,4 +1,4 @@
-use crate::git::{list_branches, switch_to_branch};
+use crate::git::{list_local_branches, list_remote_branches, switch_to_branch};
 use std::env;
 
 mod git;
@@ -12,11 +12,19 @@ fn main() {
         return;
     }
 
-    let branches = list_branches();
-    let best_match =
-        matcher::find_best_branch(&branches, &args.iter().map(|it| it.as_str()).collect());
+    let local_branches = list_local_branches();
+    let best_local_match =
+        matcher::find_best_branch(&local_branches, &args.iter().map(|it| it.as_str()).collect());
 
-    match best_match {
+    if !best_local_match.is_none() {
+        switch_to_branch(best_local_match.unwrap());
+        return
+    }
+
+    let remote_branches = list_remote_branches();
+    let best_remote_match = matcher::find_best_branch(&remote_branches, &args.iter().map(|it| it.as_str()).collect());
+
+    match best_remote_match {
         Some(branch) => switch_to_branch(branch),
         None => println!("Couldn't find a good match. Not switching."),
     }
